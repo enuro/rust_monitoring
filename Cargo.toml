@@ -1,4 +1,13 @@
 [package]
-name = "rust_monitofing"
+name = "rust_monitoring"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+authors = ["Enuro <enurovi@mail.ru>"]
+
+[dependencies]
+color-eyre = "0.6.5"
+crossterm = "0.29.0"
+nvml-wrapper = "0.11.0"
+ratatui = "0.29.0"
+sysinfo = "0.36.1"
