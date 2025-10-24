@@ -1,6 +1,8 @@
+use crossterm::event::Event;
 use ratatui::backend::Backend;
 use ratatui::{DefaultTerminal, Terminal};
-
+use ratatui::crossterm::event;
+use ratatui::crossterm::event::{KeyCode, KeyEventKind};
 use crate::app::App;
 use crate::ui::ui;
 
@@ -17,5 +19,7 @@ fn main() {
 fn run_app(terminal: &mut DefaultTerminal, app: &mut App) {
     loop {
         terminal.draw(|mut f| {ui(f, app)}).unwrap();
+
+        
     }
 }
