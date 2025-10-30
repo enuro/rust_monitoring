@@ -12,6 +12,7 @@ use sysinfo::{CpuRefreshKind, RefreshKind, MemoryRefreshKind, DiskRefreshKind};
 use crate::app::App;
 
 pub fn ui(frame: &mut Frame, app: &App) {
+    let mut system = System::new_all();
     let mut system_cpu = System::new_with_specifics(
         RefreshKind::nothing().with_cpu(CpuRefreshKind::everything()),
     );
@@ -100,20 +101,21 @@ pub fn ui(frame: &mut Frame, app: &App) {
    
 
     let disk_data = Block::default().borders(Borders::ALL).title("DISK").style(Style::default().cyan());
-    let mut used_disk: u64 = 0;
-    let mut total_disk: u64 = 0;
+    let mut total_usage: f64 = 0.0;
     for disk in system_disk.list_mut() {
-        total_disk = total_disk + (disk.total_space() / 1024 / 1024 / 1024);
-        used_disk = used_disk + (disk.usage().written_bytes / 1024 / 1024 / 1024);
-        disk.refresh();
+        let total_disk = disk.total_space() as f64;
+        let avaible_space = disk.available_space() as f64;
+        let procent = (1.0 - avaible_space / total_disk) * 100.0;
+        total_usage += procent;
     }
-    let disk_inf = (used_disk as f64 / total_disk as f64) * 100.0;
+    let used_disk: f64 = total_usage / system_disk.list().len() as f64;
     let disk = Paragraph::new(Text::styled(
-        format!("{}\n{:.1}%", "▄▄▄▄▄", disk_inf),
+        format!("{}\n{:.1}%", "▄▄▄▄▄", used_disk),
         Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
     )).block(disk_data).alignment(Alignment::Center).wrap(Wrap { trim: true });
     frame.render_widget(disk, disk_chunks[0]);
     frame.render_widget(null.clone(), disk_chunks[1]);
+    system.refresh_all();
 
     let cpu_data = Block::default().borders(Borders::ALL).title("CPU").style(Style::default().green());
     system_cpu.refresh_cpu_usage();
