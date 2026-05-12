@@ -1,10 +1,29 @@
 use std::collections::VecDeque;
+use std::path::PathBuf;
 use nvml_wrapper::Nvml;
+use ratatui::widgets::ListState;
 use sysinfo::{
     CpuRefreshKind, DiskRefreshKind, Disks, MemoryRefreshKind, Networks, ProcessRefreshKind,
     RefreshKind, System,
 };
 use crate::render3d::Mesh;
+
+pub enum ModelEntry {
+    Plushie,
+    File(PathBuf),
+}
+
+impl ModelEntry {
+    pub fn display_name(&self) -> String {
+        match self {
+            ModelEntry::Plushie => "(procedural) Plushie".to_string(),
+            ModelEntry::File(p) => p
+                .file_name()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_else(|| p.to_string_lossy().to_string()),
+        }
+    }
+}
 
 pub const HISTORY_LEN: usize = 60;
 
@@ -38,6 +57,9 @@ pub struct App {
     pub cpu_per_core_history: Vec<VecDeque<f64>>,
     pub mesh: Mesh,
     pub frame_count: u64,
+    pub picker_open: bool,
+    pub picker_models: Vec<ModelEntry>,
+    pub picker_state: ListState,
 }
 
 impl App {
@@ -70,6 +92,9 @@ impl App {
                 .collect(),
             mesh,
             frame_count: 0,
+            picker_open: false,
+            picker_models: Vec::new(),
+            picker_state: ListState::default(),
         }
     }
 }

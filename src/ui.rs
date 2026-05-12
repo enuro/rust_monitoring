@@ -10,8 +10,11 @@ use ratatui::prelude::Modifier;
 use ratatui::style::{Color, Style};
 use ratatui::symbols::Marker;
 use ratatui::text::{Line as TextLine, Span, Text};
+use ratatui::layout::Rect;
 use ratatui::widgets::canvas::{Canvas, Line};
-use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Sparkline, Table, Wrap};
+use ratatui::widgets::{
+    Block, Borders, Cell, Clear, List, ListItem, Paragraph, Row, Sparkline, Table, Wrap,
+};
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate};
 
 pub fn ui(frame: &mut Frame, app: &mut App) {
@@ -24,6 +27,9 @@ pub fn ui(frame: &mut Frame, app: &mut App) {
         CurrentScreen::DiskScreen => ui_disk(frame, app),
         CurrentScreen::TaskListScreen => ui_process(frame, app),
         CurrentScreen::Main => ui_main(frame, app),
+    }
+    if app.picker_open {
+        ui_picker(frame, app);
     }
 }
 
@@ -251,16 +257,17 @@ fn ui_main(frame: &mut Frame, app: &App) {
     .wrap(Wrap { trim: true });
     frame.render_widget(net_paragraph, net_chunks[0]);
 
-    // 3D MODEL VIEWPORT
+    // 3D MODEL VIEWPORT — rotating around X and Y axes, per-edge color
     let angle_y = (app.frame_count as f64) * 0.04;
-    let tilt_x = 0.25;
+    let angle_x = (app.frame_count as f64) * 0.018;
     let projected: Vec<(f64, f64)> = app
         .mesh
         .vertices
         .iter()
-        .map(|v| project(v.rotate_y(angle_y).rotate_x(tilt_x), 4.0))
+        .map(|v| project(v.rotate_y(angle_y).rotate_x(angle_x), 4.0))
         .collect();
     let edges_ref = &app.mesh.edges;
+    let colors_ref = &app.mesh.edge_colors;
     let projected_ref = &projected;
     let canvas = Canvas::default()
         .block(
@@ -273,15 +280,19 @@ fn ui_main(frame: &mut Frame, app: &App) {
         .x_bounds([-1.7, 1.7])
         .y_bounds([-1.7, 1.7])
         .paint(move |ctx| {
-            for (a, b) in edges_ref {
+            for (i, (a, b)) in edges_ref.iter().enumerate() {
                 let (x1, y1) = projected_ref[*a];
                 let (x2, y2) = projected_ref[*b];
+                let (cr, cg, cb) = colors_ref
+                    .get(i)
+                    .copied()
+                    .unwrap_or((180, 220, 240));
                 ctx.draw(&Line {
                     x1,
                     y1,
                     x2,
                     y2,
-                    color: Color::LightCyan,
+                    color: Color::Rgb(cr, cg, cb),
                 });
             }
         });
@@ -386,9 +397,11 @@ fn ui_main(frame: &mut Frame, app: &App) {
     frame.render_widget(process_paragraph, chunks_data[5]);
 
     // Status bar
-    let hint = Paragraph::new(" [C] CPU  [M] Memory  [G] GPU  [N] Net  [D] Disk  [T] Tasks  [Q] Quit ")
-        .style(Style::default().fg(Color::DarkGray))
-        .alignment(Alignment::Center);
+    let hint = Paragraph::new(
+        " [C] CPU  [M] Memory  [G] GPU  [N] Net  [D] Disk  [T] Tasks  [O] Model  [Q] Quit ",
+    )
+    .style(Style::default().fg(Color::DarkGray))
+    .alignment(Alignment::Center);
     frame.render_widget(hint, outer[1]);
 }
 
@@ -996,4 +1009,49 @@ fn ui_process(frame: &mut Frame, app: &App) {
     .style(Style::default().fg(Color::DarkGray))
     .alignment(Alignment::Center);
     frame.render_widget(footer, chunks[2]);
+}
+
+fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
+    let w = width.min(area.width);
+    let h = height.min(area.height);
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    Rect::new(x, y, w, h)
+}
+
+fn ui_picker(frame: &mut Frame, app: &mut App) {
+    let area = frame.area();
+    let popup = centered_rect(46, 14, area);
+    frame.render_widget(Clear, popup);
+
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(0), Constraint::Length(1)])
+        .split(popup);
+
+    let items: Vec<ListItem> = app
+        .picker_models
+        .iter()
+        .map(|m| ListItem::new(m.display_name()))
+        .collect();
+    let list = List::new(items)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Select model ")
+                .style(Style::default().fg(Color::LightCyan)),
+        )
+        .highlight_style(
+            Style::default()
+                .bg(Color::LightCyan)
+                .fg(Color::Black)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("> ");
+    frame.render_stateful_widget(list, layout[0], &mut app.picker_state);
+
+    let footer = Paragraph::new(" ↑/↓ navigate · Enter load · Esc cancel ")
+        .style(Style::default().fg(Color::DarkGray))
+        .alignment(Alignment::Center);
+    frame.render_widget(footer, layout[1]);
 }
